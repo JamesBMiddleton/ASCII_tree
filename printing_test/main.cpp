@@ -25,6 +25,7 @@ std::vector<std::vector<char>> create_canvas()
 void draw_canvas(std::vector<std::vector<char>> canvas, int num)
 {
     std::stringstream ss;
+    ss >> std::noskipws;
     std::string output;
     for (int x{0}; x<canvas.size(); ++x)
     {
@@ -42,10 +43,10 @@ int main()
     std::cout << "\x1b[?25l";
     std::vector<std::vector<char>> canvas = create_canvas();
 
-    double num{1};
+    double num{1920};
     while (num--)
     {   
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
         draw_canvas(canvas, num);
     }
     return 0;
