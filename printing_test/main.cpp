@@ -16,9 +16,7 @@ std::vector<std::vector<char>> create_canvas()
         for (int j{0}; j<x; ++j)
             temp.push_back(' ');
         canvas.push_back(temp);
-        //std::cout << temp.size();
     }
-    //std::cout << canvas.size() << std::endl;  
     return canvas;
 }
 
