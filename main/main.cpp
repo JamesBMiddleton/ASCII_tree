@@ -80,7 +80,7 @@ struct Segment
 
 struct Canvas
 {
-    Canvas(int x, int y);
+    Canvas(long unsigned int x, long unsigned int y);
     std::vector<std::vector<char>> ASCII_canvas;
     unsigned long get_seed() {return seed+segment_count;}
     std::string force_segment_split(Segment segment);
@@ -96,8 +96,8 @@ int Canvas::max_trunk_height{11};   //its backwards because we work from bottom 
 int Canvas::max_arm_height{7};
 int Canvas::max_twig_height{4};
 
-Canvas::Canvas(int x, int y)
-    :ASCII_canvas{(x, std::vector<char>(y, ' '))}, segment_count{0}, seed{time(NULL)}   // Creates a 2D vector of whitespace chars.
+Canvas::Canvas(long unsigned int x, long unsigned int y)
+    :ASCII_canvas{x, std::vector<char>(y, ' ')}, segment_count{0}, seed{time(NULL)}   // Creates a 2D vector of whitespace chars.
 {}
 
 std::string Canvas::force_segment_split(Segment segment)
@@ -122,7 +122,8 @@ bool Canvas::terminates(Segment segment)
 {   
     if (segment.coords.x <= max_twig_height)
         return true;
-    if (segment.type == "twig_left" || segment.type == "twig_straight" || segment.type == "twig_right" || segment.type == "twig_left_across" || segment.type == "twig_right_across")
+    //if (segment.type == "twig_left" || segment.type == "twig_straight" || segment.type == "twig_right" || segment.type == "twig_left_across" || segment.type == "twig_right_across")
+    if (SegmentInfo::get_ASCII(segment.type).size() <= 2)
     {
         srand(get_seed());
         return rand() % 2; // more likely to terminate 3:1
@@ -139,13 +140,61 @@ void clear_screen(int x, int y)
     std::cout << s << "\x1b[?25l";
 }
 
-void print_segment(Segment segment)
+std::string add_decor(Segment segment, Canvas& canvas)
+{
+    std::string ascii{SegmentInfo::get_ASCII(segment.type)};
+    srand(canvas.get_seed());
+    if (ascii.size() >= 5) //trunks
+    {  
+        if (segment.type == "trunk_split")
+        {
+            ascii[1] = '~';
+            ascii[4] = '~';
+        }
+        else if (!rand() % 20)
+            ascii[3] = '@';
+        else
+        { 
+            int i{rand() % 3 + 1};
+            ascii[i] = '~';
+        }
+    }
+    if (ascii.size() == 3) //arms
+        ascii[1] = '~';
+        
+    if (segment.type == "arm_new_twig_left")
+        ascii[2] = '~';
+    if (segment.type == "arm_new_twig_right")
+        ascii[1] = '~';
+    return "\x1b[38;2;161;61;45m" + ascii + "\x1b[m";
+}
+
+void add_leaves(Segment segment, Canvas& canvas)
+{
+    static std::vector<Coords> leaf_coords {
+        {0,-1}, {0,1}, {-1,0}, {1,0}, {1,1}, {-1,-1}, {1,-1}, {-1,1}, {1,2}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {-1, -3},  {-1, 3}, {0, -2}, {0, 2}, {-2, 0}, {-2, 2}, {0, -3},{-2, -1}, {-2, -2}, {0, 3}};
+    for (Coords leaf_coord : leaf_coords)
+    {
+        if (canvas.ASCII_canvas[segment.coords.x + leaf_coord.x][segment.coords.y + leaf_coord.y] == ' ')
+        {
+            std::cout << "\x1B[" << segment.coords.x + leaf_coord.x << ';' << segment.coords.y + leaf_coord.y << 'H';
+            std::cout << "\x1b[38;2;45;90;39m" << '&' << "\x1b[m";
+            std::cout.flush();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+}
+
+void print_segment(Segment segment, Canvas& canvas)
 // Uses the coordinates and type members of a Segment object.
 // Accesses SegmentInfo to retrieve the ASCII representation of a segment.
 {
+    std::string ascii_output{add_decor(segment, canvas)};
     std::cout << "\x1B[" << segment.coords.x << ';' << segment.coords.y << 'H';
-    std::cout << SegmentInfo::get_ASCII(segment.type);
+    std::cout << ascii_output;
     std::cout.flush();   // sleep loops are messed up without flushing cout.
+    if (segment.is_terminator)
+        add_leaves(segment, canvas);
 }
 
 void initialize_segment_types()
@@ -273,9 +322,9 @@ void initialize_segment_types()
 
 Segment initialise_tree(Canvas canvas)
 {
-    Segment base{"trunk_base", {24, 30}};
+    Segment base{"trunk_base", {23, 30}};
     canvas.segment_count++;
-    print_segment(base);
+    print_segment(base, canvas);
     return base;
 }
 
@@ -308,6 +357,7 @@ Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
         next_seg_name = force_split;
     else
         next_seg_name = choose_segment_type(previous_segment, canvas);
+    
     CoordsOffset offset{SegmentInfo::get_next_segment_coords(previous_segment.type).at(next_seg_name)};
     Coords next_seg_coords{previous_segment.coords.x + offset.x, previous_segment.coords.y + offset.y};
     Segment next_segment{next_seg_name, next_seg_coords, canvas.terminates(previous_segment)};
@@ -315,12 +365,21 @@ Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
     return next_segment;
 }
 
+void add_to_canvas(Segment segment, Canvas& canvas)
+{
+    int row{segment.coords.x}; // backwards...
+    std::string segment_ASCII = SegmentInfo::get_ASCII(segment.type);
+    for (int i{0}; i<segment_ASCII.size(); i++)
+        canvas.ASCII_canvas[row][segment.coords.y+i] = segment_ASCII[i];
+}
+
 void add_segment(Segment previous_segment, Canvas& canvas)
 {
     while (true)
     {
         Segment next_segment = pick_next_segment(previous_segment, canvas);
-        print_segment(next_segment);
+        add_to_canvas(next_segment, canvas);
+        print_segment(next_segment, canvas);
         if (next_segment.is_terminator)
             break;
         if (SegmentInfo::is_branching(next_segment.type))
@@ -332,7 +391,10 @@ void add_segment(Segment previous_segment, Canvas& canvas)
             Segment left_branch{left_branch_type, left_branch_coords};
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (branch_info.predefined_next_segs)
-                print_segment(left_branch);
+            {
+                print_segment(left_branch, canvas);
+                add_to_canvas(left_branch, canvas);
+            }
             add_segment(left_branch, canvas);  // Recurse.
 
             Coords right_branch_coords{next_segment.coords.x + branch_info.right_offset.x, next_segment.coords.y + branch_info.right_offset.y};
@@ -340,8 +402,11 @@ void add_segment(Segment previous_segment, Canvas& canvas)
             Segment right_branch{right_branch_type, right_branch_coords};
             previous_segment = right_branch;
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            if (branch_info.predefined_next_segs)  
-                print_segment(right_branch);
+            if (branch_info.predefined_next_segs) 
+            {
+                print_segment(right_branch, canvas);
+                add_to_canvas(right_branch, canvas);
+            }
         }
         else
             previous_segment = next_segment;
@@ -356,6 +421,12 @@ int main()
     Canvas canvas{24, 80};
     Segment base = initialise_tree(canvas);
     add_segment(base, canvas);
-    //std::cout << "\x1B[" << 24 << ";" << 1 << "H";  // there's something weird happening with cout buffering/flushing.
+    std::cout << "\x1B[" << 24 << ";" << 1 << "H";  // there's something weird happening with cout buffering/flushing.
+    // for (int i{0}; i<canvas.ASCII_canvas.size(); i++)
+    // {
+    //     for (int ii{0}; ii<canvas.ASCII_canvas[0].size(); ii++)
+    //         std::cout << canvas.ASCII_canvas[i][ii];
+    //     std::cout << std::endl;
+    // }
     return 0;
 }
