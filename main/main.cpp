@@ -77,6 +77,20 @@ struct Segment
     bool is_terminator;
 };
 
+struct Canvas
+{
+    Canvas(int x, int y);
+    std::vector<std::vector<char>> ASCII_canvas;
+    unsigned long get_seed() {return seed+segment_count;}
+    unsigned long segment_count;
+private:
+    long seed;
+};
+
+Canvas::Canvas(int x, int y)
+    :ASCII_canvas{(x, std::vector<char>(y, ' '))}, segment_count{0}, seed{time(NULL)}   // Creates a 2D vector of whitespace chars.
+{}
+
 void clear_screen(int x, int y)
 // Prints a string of whitespace to clear the screen and removes the cursor.
 // This should probably take into account the terminal col number in the future.
@@ -84,13 +98,6 @@ void clear_screen(int x, int y)
     int total{x*y};
     std::string s(total, ' ');
     std::cout << s << "\x1b[?25l";
-}
-
-std::vector<std::vector<char>> create_canvas(int x, int y)
-// Creates a 2D vector of whitespace chars.
-{
-    std::vector<std::vector<char>> canvas(x, std::vector<char>(y, ' '));
-    return canvas;
 }
 
 void print_segment(Segment segment)
@@ -108,22 +115,22 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "trunk_base",
         "/     \\",
-        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 1}, {"trunk_right", 1}},
+        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 3}, {"trunk_right", 1}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 1}}, {"trunk_straight", {-1, 1}}, {"trunk_right", {-1, 1}}});
     SegmentInfo::create_segment_type(
         "trunk_left",
         "\\   \\",
-        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 2}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 5}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, -1}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 0}}, {"new_arm_left", {-1, -1}}, {"new_arm_right", {-1, -1}}, {"trunk_split", {-1,-1}}});
     SegmentInfo::create_segment_type(
         "trunk_straight",
         "|   |",
-        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 2}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 5}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 0}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, -1}}, {"trunk_split", {-1,0}}});
     SegmentInfo::create_segment_type(
         "trunk_right",
         "/   /",
-        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 2}, {"trunk_right", 2}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 5}, {"trunk_right", 2}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 1}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, 0}}, {"trunk_split", {-1,0}}});
 
 
@@ -144,28 +151,41 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "arm_left",
         "\\ \\",
-        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 1}, {"arm_right", 1}, {"new_twig_right", 1}},
-        std::map<std::string, CoordsOffset> {{"arm_left", {-1, -1}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"new_twig_right", {-1, -1}}});
+        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 2}, {"arm_right", 1}, {"new_twig_right", 1}, {"arm_taper_left", 1}},
+        std::map<std::string, CoordsOffset> {{"arm_left", {-1, -1}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"new_twig_right", {-1, -1}}, {"arm_taper_left", {-1, 0}}});
     SegmentInfo::create_segment_type(
         "arm_straight",
         "| |",
-        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 1}, {"arm_right", 1}},
-        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}});
+        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 2}, {"arm_right", 1}, {"arm_taper_left", 1}, {"arm_taper_right", 1}},
+        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"arm_taper_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     SegmentInfo::create_segment_type(
         "arm_right",
         "/ /",
-        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 1}, {"arm_right", 1}, {"new_twig_left", 1}},
-        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 1}}, {"new_twig_left", {-1, 0}}});
-
+        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 2}, {"arm_right", 2}, {"new_twig_left", 1}, {"arm_taper_right", 1}},
+        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 1}}, {"new_twig_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     
+
+    SegmentInfo::create_segment_type(
+        "arm_taper_left",
+        "|\\",
+        std::map<std::string, int> {{"twig_left", 1}},
+        std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}});
+    SegmentInfo::create_segment_type(
+        "arm_taper_right",
+        "/|",
+        std::map<std::string, int> {{"twig_right", 1}},
+        std::map<std::string, CoordsOffset> {{"twig_right", {-1, 1}}});
+    
+
     SegmentInfo::create_branching_segment_type(
         "new_twig_left",
         "\\/ /",
-        BranchInfo{"twig_left", "arm_right", {-1,-1}, {-1, 1}});
+        BranchInfo{"twig_left", "arm_right", {-1,-1}, {-1, 2}});
     SegmentInfo::create_branching_segment_type(
         "new_twig_right",
         "\\ \\/",
         BranchInfo{"arm_left", "twig_right", {-1,-1}, {-1, 1}});
+
     
     SegmentInfo::create_segment_type(
         "twig_left",
@@ -184,14 +204,15 @@ void initialize_segment_types()
         std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 1}}});
 }
 
-Segment initialise_tree(std::vector<std::vector<char>> canvas)
+Segment initialise_tree(Canvas canvas)
 {
     Segment base{"trunk_base", {24, 30}};
+    canvas.segment_count++;
     print_segment(base);
     return base;
 }
 
-std::string choose_segment_type(Segment previous_segment)
+std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
 // Adds the potential segments to a vector the number of times specified.
 // Randomly chooses a winning segment.
 // This definitely isn't efficient, but its analogous to a raffle, so easy to understand...
@@ -207,21 +228,22 @@ std::string choose_segment_type(Segment previous_segment)
         while (value--)
             raffle.push_back(it->first);
     }
-    std::mt19937 generator(time(NULL));
-    std::uniform_int_distribution<int>  distr(0, raffle.size()-1);
-    return raffle[distr(generator)];
+    srand(canvas.get_seed());                                  
+    long unsigned int winner{rand() % raffle.size()};
+    canvas.segment_count++;
+    return raffle[winner];
 }
 
-Segment pick_next_segment(Segment previous_segment, std::vector<std::vector<char>> canvas)
+Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
 {   
-    std::string next_seg_name = choose_segment_type(previous_segment);
+    std::string next_seg_name = choose_segment_type(previous_segment, canvas);
     CoordsOffset offset{SegmentInfo::get_next_segment_coords(previous_segment.type).at(next_seg_name)};
     Coords next_seg_coords{previous_segment.coords.x + offset.x, previous_segment.coords.y + offset.y};
     Segment next_segment{next_seg_name, next_seg_coords};
     return next_segment;
 }
 
-void add_segment(Segment previous_segment, std::vector<std::vector<char>> canvas)
+void add_segment(Segment previous_segment, Canvas& canvas)
 {
     int i{7};
     while (i--)
@@ -261,7 +283,7 @@ int main()
 {
     initialize_segment_types();
     clear_screen(24, 80);
-    std::vector<std::vector<char>> canvas = create_canvas(24, 80);
+    Canvas canvas{24, 80};
     Segment base = initialise_tree(canvas);
     add_segment(base, canvas);
     //std::cout << "\x1B[" << 24 << ";" << 1 << "H";  // there's something weird happening with cout buffering/flushing.
