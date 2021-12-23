@@ -15,6 +15,7 @@ struct BranchInfo
 {   
     std::string left_name, right_name;
     CoordsOffset left_offset, right_offset;
+    bool predefined_next_segs;
 };
 
 struct SegmentInfo
@@ -82,14 +83,52 @@ struct Canvas
     Canvas(int x, int y);
     std::vector<std::vector<char>> ASCII_canvas;
     unsigned long get_seed() {return seed+segment_count;}
+    std::string force_segment_split(Segment segment);
+    bool terminates(Segment segment);
     unsigned long segment_count;
 private:
     long seed;
+    static int max_trunk_height;
+    static int max_arm_height;
+    static int max_twig_height;
 };
+int Canvas::max_trunk_height{11};   //its backwards because we work from bottom to top.
+int Canvas::max_arm_height{7};
+int Canvas::max_twig_height{4};
 
 Canvas::Canvas(int x, int y)
     :ASCII_canvas{(x, std::vector<char>(y, ' '))}, segment_count{0}, seed{time(NULL)}   // Creates a 2D vector of whitespace chars.
 {}
+
+std::string Canvas::force_segment_split(Segment segment)
+{
+    if ((segment.type == "trunk_left" || segment.type == "trunk_straight" || segment.type == "trunk_right") && segment.coords.x <= max_trunk_height)
+        return "trunk_split";
+    if (segment.coords.x <= max_arm_height)
+    {
+        if (segment.type == "arm_left")
+            return "arm_taper_left";
+        if (segment.type == "arm_straight")
+            return "arm_taper_right";  // need randomness here ideally... (left or right)
+        if (segment.type == "arm_right")
+            return "arm_taper_right";
+        else
+            return "";
+    }
+    return "";
+}
+
+bool Canvas::terminates(Segment segment)
+{   
+    if (segment.coords.x <= max_twig_height)
+        return true;
+    if (segment.type == "twig_left" || segment.type == "twig_straight" || segment.type == "twig_right" || segment.type == "twig_left_across" || segment.type == "twig_right_across")
+    {
+        srand(get_seed());
+        return rand() % 2; // more likely to terminate 3:1
+    }
+    return false;
+}
 
 void clear_screen(int x, int y)
 // Prints a string of whitespace to clear the screen and removes the cursor.
@@ -120,49 +159,49 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "trunk_left",
         "\\   \\",
-        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 5}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 3}, {"trunk_straight", 2}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, -1}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 0}}, {"new_arm_left", {-1, -1}}, {"new_arm_right", {-1, -1}}, {"trunk_split", {-1,-1}}});
     SegmentInfo::create_segment_type(
         "trunk_straight",
         "|   |",
-        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 5}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 2}, {"trunk_right", 2}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 0}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, -1}}, {"trunk_split", {-1,0}}});
     SegmentInfo::create_segment_type(
         "trunk_right",
         "/   /",
-        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 5}, {"trunk_right", 2}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 1}},
+        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 2}, {"trunk_right", 3}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 1}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, 0}}, {"trunk_split", {-1,0}}});
 
 
     SegmentInfo::create_branching_segment_type(
         "new_arm_left",
         "\\    /",
-        BranchInfo{"arm_left", "trunk_right", {-1,-1}, {-1, 2}});
+        BranchInfo{"arm_left", "trunk_right", {-1,-1}, {-1, 2}, true});
     SegmentInfo::create_branching_segment_type(
         "new_arm_right",
         "\\    /",
-        BranchInfo{"trunk_left", "arm_right", {-1,-1}, {-1, 4}});
+        BranchInfo{"trunk_left", "arm_right", {-1,-1}, {-1, 4}, true});
     SegmentInfo::create_branching_segment_type(
         "trunk_split",
         "\\ \\/ /",
-        BranchInfo{"arm_left", "arm_right", {-1,-1}, {-1, 4}});                      
+        BranchInfo{"arm_left", "arm_right", {-1,-1}, {-1, 4}, true});                      
 
 
     SegmentInfo::create_segment_type(
         "arm_left",
         "\\ \\",
-        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 2}, {"arm_right", 1}, {"new_twig_right", 1}, {"arm_taper_left", 1}},
-        std::map<std::string, CoordsOffset> {{"arm_left", {-1, -1}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"new_twig_right", {-1, -1}}, {"arm_taper_left", {-1, 0}}});
+        std::map<std::string, int> {{"arm_left", 4}, {"arm_straight", 1}, {"arm_right", 2}, {"arm_new_twig_right", 1}, {"arm_taper_left", 2}},
+        std::map<std::string, CoordsOffset> {{"arm_left", {-1, -1}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"arm_new_twig_right", {-1, -1}}, {"arm_taper_left", {-1, 0}}});
     SegmentInfo::create_segment_type(
         "arm_straight",
         "| |",
-        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 2}, {"arm_right", 1}, {"arm_taper_left", 1}, {"arm_taper_right", 1}},
+        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 1}, {"arm_right", 2}, {"arm_taper_left", 1}, {"arm_taper_right", 2}},
         std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"arm_taper_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     SegmentInfo::create_segment_type(
         "arm_right",
         "/ /",
-        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 2}, {"arm_right", 2}, {"new_twig_left", 1}, {"arm_taper_right", 1}},
-        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 1}}, {"new_twig_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
+        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 1}, {"arm_right", 4}, {"arm_new_twig_left", 1}, {"arm_taper_right", 2}},
+        std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 1}}, {"arm_new_twig_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     
 
     SegmentInfo::create_segment_type(
@@ -178,30 +217,58 @@ void initialize_segment_types()
     
 
     SegmentInfo::create_branching_segment_type(
-        "new_twig_left",
+        "arm_new_twig_left",
         "\\/ /",
-        BranchInfo{"twig_left", "arm_right", {-1,-1}, {-1, 2}});
+        BranchInfo{"twig_left", "arm_right", {-1,-1}, {-1, 2}, true});
     SegmentInfo::create_branching_segment_type(
-        "new_twig_right",
+        "arm_new_twig_right",
         "\\ \\/",
-        BranchInfo{"arm_left", "twig_right", {-1,-1}, {-1, 1}});
+        BranchInfo{"arm_left", "twig_right", {-1,-1}, {-1, 1}, true});
 
     
     SegmentInfo::create_segment_type(
         "twig_left",
         "\\",
-        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}},
-        std::map<std::string, CoordsOffset> {{"twig_left", {-1, -1}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 0}}});
+        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_left", 1}, {"twig_new_twig_right", 3}, {"twig_new_twig_across_left", 3}},
+        std::map<std::string, CoordsOffset> {{"twig_left", {-1, -1}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 0}}, {"twig_across_left", {-1, -1}}, {"twig_new_twig_right", {-1, -1}}, {"twig_new_twig_across_left", {-1, -1}}});
     SegmentInfo::create_segment_type(
         "twig_straight",
         "|",
-        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}},
+        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 3}, {"twig_right", 3}},
         std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 0}}});
     SegmentInfo::create_segment_type(
         "twig_right",
         "/",
-        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}},
-        std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 1}}});
+        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_right", 1}, {"twig_new_twig_left", 3}, {"twig_new_twig_across_right", 3}},
+        std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 1}}, {"twig_across_right", {-1, 1}}, {"twig_new_twig_left", {-1, 0}}, {"twig_new_twig_across_right", {-1, 0}}});
+    SegmentInfo::create_segment_type(
+        "twig_across_left",
+        "_",
+        std::map<std::string, int> {{"twig_left", 3}, {"twig_across_left", 1}},
+        std::map<std::string, CoordsOffset> {{"twig_left", {0, -1}}, {"twig_across_left", {0, -1}}});
+    SegmentInfo::create_segment_type(
+        "twig_across_right",
+        "_",
+        std::map<std::string, int> {{"twig_right", 3}, {"twig_across_right", 1}},
+        std::map<std::string, CoordsOffset> {{"twig_right", {0, 1}}, {"twig_across_right", {0, 1}}});
+
+
+    SegmentInfo::create_branching_segment_type(
+        "twig_new_twig_left",
+        "\\/",
+        BranchInfo{"twig_left", "twig_right", {0,0}, {0,1}, false});
+    SegmentInfo::create_branching_segment_type(
+        "twig_new_twig_right",
+        "\\/",
+        BranchInfo{"twig_left", "twig_right", {0,0}, {0,1}, false});
+    SegmentInfo::create_branching_segment_type(
+        "twig_new_twig_across_left",
+        "_/",
+        BranchInfo{"twig_across_left", "twig_right", {0,0}, {0,1}, false});
+    SegmentInfo::create_branching_segment_type(
+        "twig_new_twig_across_right",
+        "\\_",
+        BranchInfo{"twig_left", "twig_across_right", {0,0}, {0,1}, false});
 }
 
 Segment initialise_tree(Canvas canvas)
@@ -230,26 +297,29 @@ std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
     }
     srand(canvas.get_seed());                                  
     long unsigned int winner{rand() % raffle.size()};
-    canvas.segment_count++;
     return raffle[winner];
 }
 
 Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
 {   
-    std::string next_seg_name = choose_segment_type(previous_segment, canvas);
+    std::string next_seg_name;
+    std::string force_split = canvas.force_segment_split(previous_segment);
+    if (force_split != "") // hacky way to check if we want to force a split...
+        next_seg_name = force_split;
+    else
+        next_seg_name = choose_segment_type(previous_segment, canvas);
     CoordsOffset offset{SegmentInfo::get_next_segment_coords(previous_segment.type).at(next_seg_name)};
     Coords next_seg_coords{previous_segment.coords.x + offset.x, previous_segment.coords.y + offset.y};
-    Segment next_segment{next_seg_name, next_seg_coords};
+    Segment next_segment{next_seg_name, next_seg_coords, canvas.terminates(previous_segment)};
+    canvas.segment_count++;
     return next_segment;
 }
 
 void add_segment(Segment previous_segment, Canvas& canvas)
 {
-    int i{7};
-    while (i--)
+    while (true)
     {
         Segment next_segment = pick_next_segment(previous_segment, canvas);
-        // add_to_canvas(next_segment, canvas)
         print_segment(next_segment);
         if (next_segment.is_terminator)
             break;
@@ -261,17 +331,17 @@ void add_segment(Segment previous_segment, Canvas& canvas)
             std::string left_branch_type{branch_info.left_name};
             Segment left_branch{left_branch_type, left_branch_coords};
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            print_segment(left_branch);
-            // add_to_canvas(left_branch);
-            add_segment(left_branch, canvas);  // Recurse. *note this makes the tree grow left to right, need multithreading or randomness here.* also left branch gets extra 7 steps in current testing
+            if (branch_info.predefined_next_segs)
+                print_segment(left_branch);
+            add_segment(left_branch, canvas);  // Recurse.
 
             Coords right_branch_coords{next_segment.coords.x + branch_info.right_offset.x, next_segment.coords.y + branch_info.right_offset.y};
             std::string right_branch_type{branch_info.right_name};
             Segment right_branch{right_branch_type, right_branch_coords};
             previous_segment = right_branch;
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
-            print_segment(right_branch);
-            // add_to_canvas(right_branch);
+            if (branch_info.predefined_next_segs)  
+                print_segment(right_branch);
         }
         else
             previous_segment = next_segment;
