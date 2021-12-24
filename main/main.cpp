@@ -3,9 +3,6 @@
 #include <map>
 #include <chrono>
 #include <thread>
-#include <stdlib.h>
-#include <time.h>
-#include <random>
 
 
 struct Coords {int x, y;};
@@ -67,136 +64,6 @@ void SegmentInfo::create_branching_segment_type(std::string name, std::string AS
     branch_data.insert({name, branch_info});
 }
 
-struct Segment
-// Designed for instancing individual segments.
-// Access SegmentInfo members using 'type' for a segment's predefined attributes.
-{
-    Segment(std::string seg_type, Coords seg_coords, bool seg_terminates=false) 
-            :type{seg_type}, coords{seg_coords}, is_terminator{seg_terminates} {}
-    std::string type;
-    Coords coords;
-    bool is_terminator;
-};
-
-struct Canvas
-{
-    Canvas(long unsigned int x, long unsigned int y);
-    std::vector<std::vector<char>> ASCII_canvas;
-    unsigned long get_seed() {return seed+segment_count;}
-    std::string force_segment_split(Segment segment);
-    bool terminates(Segment segment);
-    unsigned long segment_count;
-private:
-    long seed;
-    static int max_trunk_height;
-    static int max_arm_height;
-    static int max_twig_height;
-};
-int Canvas::max_trunk_height{11};   //its backwards because we work from bottom to top.
-int Canvas::max_arm_height{7};
-int Canvas::max_twig_height{4};
-
-Canvas::Canvas(long unsigned int x, long unsigned int y)
-    :ASCII_canvas{x, std::vector<char>(y, ' ')}, segment_count{0}, seed{time(NULL)}   // Creates a 2D vector of whitespace chars.
-{}
-
-std::string Canvas::force_segment_split(Segment segment)
-{
-    if ((segment.type == "trunk_left" || segment.type == "trunk_straight" || segment.type == "trunk_right") && segment.coords.x <= max_trunk_height)
-        return "trunk_split";
-    if (segment.coords.x <= max_arm_height)
-    {
-        if (segment.type == "arm_left")
-            return "arm_taper_left";
-        if (segment.type == "arm_straight")
-            return "arm_taper_right";  // need randomness here ideally... (left or right)
-        if (segment.type == "arm_right")
-            return "arm_taper_right";
-        else
-            return "";
-    }
-    return "";
-}
-
-bool Canvas::terminates(Segment segment)
-{   
-    if (segment.coords.x <= max_twig_height)
-        return true;
-    //if (segment.type == "twig_left" || segment.type == "twig_straight" || segment.type == "twig_right" || segment.type == "twig_left_across" || segment.type == "twig_right_across")
-    if (SegmentInfo::get_ASCII(segment.type).size() <= 2)
-    {
-        srand(get_seed());
-        return rand() % 2; // more likely to terminate 3:1
-    }
-    return false;
-}
-
-void clear_screen(int x, int y)
-// Prints a string of whitespace to clear the screen and removes the cursor.
-// This should probably take into account the terminal col number in the future.
-{
-    int total{x*y};
-    std::string s(total, ' ');
-    std::cout << s << "\x1b[?25l";
-}
-
-std::string add_decor(Segment segment, Canvas& canvas)
-{
-    std::string ascii{SegmentInfo::get_ASCII(segment.type)};
-    srand(canvas.get_seed());
-    if (ascii.size() >= 5) //trunks
-    {  
-        if (segment.type == "trunk_split")
-        {
-            ascii[1] = '~';
-            ascii[4] = '~';
-        }
-        else if (!rand() % 20)
-            ascii[3] = '@';
-        else
-        { 
-            int i{rand() % 3 + 1};
-            ascii[i] = '~';
-        }
-    }
-    if (ascii.size() == 3) //arms
-        ascii[1] = '~';
-        
-    if (segment.type == "arm_new_twig_left")
-        ascii[2] = '~';
-    if (segment.type == "arm_new_twig_right")
-        ascii[1] = '~';
-    return "\x1b[38;2;161;61;45m" + ascii + "\x1b[m";
-}
-
-void add_leaves(Segment segment, Canvas& canvas)
-{
-    static std::vector<Coords> leaf_coords {
-        {0,-1}, {0,1}, {-1,0}, {1,0}, {1,1}, {-1,-1}, {1,-1}, {-1,1}, {1,2}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {-1, -3},  {-1, 3}, {0, -2}, {0, 2}, {-2, 0}, {-2, 2}, {0, -3},{-2, -1}, {-2, -2}, {0, 3}};
-    for (Coords leaf_coord : leaf_coords)
-    {
-        if (canvas.ASCII_canvas[segment.coords.x + leaf_coord.x][segment.coords.y + leaf_coord.y] == ' ')
-        {
-            std::cout << "\x1B[" << segment.coords.x + leaf_coord.x << ';' << segment.coords.y + leaf_coord.y << 'H';
-            std::cout << "\x1b[38;2;45;90;39m" << '&' << "\x1b[m";
-            std::cout.flush();
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-    }
-}
-
-void print_segment(Segment segment, Canvas& canvas)
-// Uses the coordinates and type members of a Segment object.
-// Accesses SegmentInfo to retrieve the ASCII representation of a segment.
-{
-    std::string ascii_output{add_decor(segment, canvas)};
-    std::cout << "\x1B[" << segment.coords.x << ';' << segment.coords.y << 'H';
-    std::cout << ascii_output;
-    std::cout.flush();   // sleep loops are messed up without flushing cout.
-    if (segment.is_terminator)
-        add_leaves(segment, canvas);
-}
-
 void initialize_segment_types()
 // SegmentInfo starts empty, each segment type is created here.
 {
@@ -213,12 +80,12 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "trunk_straight",
         "|   |",
-        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 2}, {"trunk_right", 2}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
+        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 3}, {"trunk_right", 1}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 0}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, -1}}, {"trunk_split", {-1,0}}});
     SegmentInfo::create_segment_type(
         "trunk_right",
         "/   /",
-        std::map<std::string, int> {{"trunk_left", 2}, {"trunk_straight", 2}, {"trunk_right", 3}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
+        std::map<std::string, int> {{"trunk_left", 1}, {"trunk_straight", 2}, {"trunk_right", 3}, {"new_arm_left", 1}, {"new_arm_right", 1}, {"trunk_split", 0}},
         std::map<std::string, CoordsOffset> {{"trunk_left", {-1, 0}}, {"trunk_straight", {-1, 0}}, {"trunk_right", {-1, 1}}, {"new_arm_left", {-1, 0}}, {"new_arm_right", {-1, 0}}, {"trunk_split", {-1,0}}});
 
 
@@ -239,17 +106,17 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "arm_left",
         "\\ \\",
-        std::map<std::string, int> {{"arm_left", 4}, {"arm_straight", 1}, {"arm_right", 2}, {"arm_new_twig_right", 1}, {"arm_taper_left", 2}},
+        std::map<std::string, int> {{"arm_left", 3}, {"arm_straight", 2}, {"arm_right", 1}, {"arm_new_twig_right", 2}, {"arm_taper_left", 3}},
         std::map<std::string, CoordsOffset> {{"arm_left", {-1, -1}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"arm_new_twig_right", {-1, -1}}, {"arm_taper_left", {-1, 0}}});
     SegmentInfo::create_segment_type(
         "arm_straight",
         "| |",
-        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 1}, {"arm_right", 2}, {"arm_taper_left", 1}, {"arm_taper_right", 2}},
+        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 1}, {"arm_right", 2}, {"arm_taper_left", 1}, {"arm_taper_right", 3}},
         std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 0}}, {"arm_taper_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     SegmentInfo::create_segment_type(
         "arm_right",
         "/ /",
-        std::map<std::string, int> {{"arm_left", 2}, {"arm_straight", 1}, {"arm_right", 4}, {"arm_new_twig_left", 1}, {"arm_taper_right", 2}},
+        std::map<std::string, int> {{"arm_left", 1}, {"arm_straight", 2}, {"arm_right", 3}, {"arm_new_twig_left", 2}, {"arm_taper_right", 3}},
         std::map<std::string, CoordsOffset> {{"arm_left", {-1, 0}}, {"arm_straight", {-1, 0}}, {"arm_right", {-1, 1}}, {"arm_new_twig_left", {-1, 0}}, {"arm_taper_right", {-1, 1}}});
     
 
@@ -278,7 +145,7 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "twig_left",
         "\\",
-        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_left", 1}, {"twig_new_twig_right", 3}, {"twig_new_twig_across_left", 3}},
+        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_left", 3}, {"twig_new_twig_right", 2}, {"twig_new_twig_across_left", 3}},
         std::map<std::string, CoordsOffset> {{"twig_left", {-1, -1}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 0}}, {"twig_across_left", {-1, -1}}, {"twig_new_twig_right", {-1, -1}}, {"twig_new_twig_across_left", {-1, -1}}});
     SegmentInfo::create_segment_type(
         "twig_straight",
@@ -288,17 +155,17 @@ void initialize_segment_types()
     SegmentInfo::create_segment_type(
         "twig_right",
         "/",
-        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_right", 1}, {"twig_new_twig_left", 3}, {"twig_new_twig_across_right", 3}},
+        std::map<std::string, int> {{"twig_left", 1}, {"twig_straight", 1}, {"twig_right", 1}, {"twig_across_right", 3}, {"twig_new_twig_left", 2}, {"twig_new_twig_across_right", 3}},
         std::map<std::string, CoordsOffset> {{"twig_left", {-1, 0}}, {"twig_straight", {-1, 0}}, {"twig_right", {-1, 1}}, {"twig_across_right", {-1, 1}}, {"twig_new_twig_left", {-1, 0}}, {"twig_new_twig_across_right", {-1, 0}}});
     SegmentInfo::create_segment_type(
         "twig_across_left",
         "_",
-        std::map<std::string, int> {{"twig_left", 3}, {"twig_across_left", 1}},
+        std::map<std::string, int> {{"twig_left", 2}, {"twig_across_left", 1}},
         std::map<std::string, CoordsOffset> {{"twig_left", {0, -1}}, {"twig_across_left", {0, -1}}});
     SegmentInfo::create_segment_type(
         "twig_across_right",
         "_",
-        std::map<std::string, int> {{"twig_right", 3}, {"twig_across_right", 1}},
+        std::map<std::string, int> {{"twig_right", 2}, {"twig_across_right", 1}},
         std::map<std::string, CoordsOffset> {{"twig_right", {0, 1}}, {"twig_across_right", {0, 1}}});
 
 
@@ -320,19 +187,142 @@ void initialize_segment_types()
         BranchInfo{"twig_left", "twig_across_right", {0,0}, {0,1}, false});
 }
 
-Segment initialise_tree(Canvas canvas)
+struct Segment
+// Designed for instancing individual segments.
+// Access SegmentInfo members using 'type' for a segment's predefined attributes.
 {
-    Segment base{"trunk_base", {23, 30}};
-    canvas.segment_count++;
-    print_segment(base, canvas);
-    return base;
+    Segment(std::string seg_type, Coords seg_coords, bool seg_terminates=false) 
+            :type{seg_type}, coords{seg_coords}, is_terminator{seg_terminates} {}
+    std::string type;
+    Coords coords;
+    bool is_terminator;
+};
+
+struct Canvas
+// Keeps track of where segments have been placed on the screen.
+{
+    Canvas(long unsigned int x, long unsigned int y);
+    std::vector<std::vector<char>> ASCII_canvas;
+    std::string force_segment_split(Segment segment);
+    bool terminates(Segment segment);
+    unsigned long segment_count{0};
+    bool has_hollow{false};
+private:
+    static int max_trunk_height;
+    static int max_arm_height;
+    static int max_twig_height;
+};
+int Canvas::max_trunk_height{11};   
+int Canvas::max_arm_height{7};          // It's backwards because we work from bottom to top.
+int Canvas::max_twig_height{4};
+
+Canvas::Canvas(long unsigned int x, long unsigned int y)
+    :ASCII_canvas{x, std::vector<char>(y, '0')}  // Creates a 2D vector of '0' chars.
+{}
+
+std::string Canvas::force_segment_split(Segment segment)
+// Checks whether a Segment should split and returns the relevant Segment type to do so.
+{
+    if ((segment.type == "trunk_left" || segment.type == "trunk_straight" || segment.type == "trunk_right") && segment.coords.x <= max_trunk_height)
+        return "trunk_split";
+    if (segment.coords.x <= max_arm_height)
+    {
+        if (segment.type == "arm_left")
+            return "arm_taper_left";
+        if (segment.type == "arm_straight")
+            return "arm_taper_right";  // need randomness here ideally... (left or right)
+        if (segment.type == "arm_right")
+            return "arm_taper_right";
+        else
+            return "";
+    }
+    return "";
+}
+
+bool Canvas::terminates(Segment segment)
+// Decides whether a segment should terminate.
+{   
+    if (segment.coords.x <= max_twig_height)
+        return true;
+    if (SegmentInfo::get_ASCII(segment.type).size() <= 2)
+        return !(rand() % 2); // 50/50 terminate/continue.
+    return false;
+}
+
+void clear_screen(int x, int y)
+// Prints a string of whitespace to clear the screen and removes the cursor.
+{
+    int total{x*y};
+    std::string s(total, ' ');
+    std::cout << s << "\x1b[?25l";
+}
+
+std::string add_decor(Segment segment, Canvas& canvas)
+// Adds decoration to a segment's ASCII in random positions.
+// A bit of an 'if' mess.
+{
+    std::string ascii{SegmentInfo::get_ASCII(segment.type)};
+    if (ascii.size() >= 5) //trunks
+    {  
+        if (segment.type == "trunk_split")
+        {
+            ascii[1] = '~';
+            ascii[4] = '~';
+        }
+        else if (!(rand() % 4) && segment.coords.x < 20 && !canvas.has_hollow)
+        {
+            ascii[2] = '@';
+            canvas.has_hollow = true;
+        }
+        else
+        { 
+            int i{rand() % 3 + 1};
+            ascii[i] = '~';
+        }
+    }
+    if (ascii.size() == 3) //arms
+        ascii[1] = '~';
+    if (segment.type == "arm_new_twig_left")
+        ascii[2] = '~';
+    if (segment.type == "arm_new_twig_right")
+        ascii[1] = '~';
+    return "\x1b[38;2;161;61;45m" + ascii + "\x1b[m";
+}
+
+void add_leaves(Segment segment, Canvas& canvas)
+// prints a circle of leaves around terminating twigs.
+{
+    static std::vector<Coords> leaf_coords {
+        {0,-1}, {0,1}, {-1,0}, {1,0}, {1,1}, {-1,-1}, {1,-1}, {-1,1}, {1,2}, {-2, 1}, {-1, -2}, {-1, 2},
+        {1, -2}, {-1, -3}, {-1, 3}, {0, -2}, {0, 2}, {-2, 0}, {-2, 2}, {0, -3},{-2, -1}, {-2, -2}, {0, 3}};
+    for (Coords leaf_coord : leaf_coords)
+    {
+        if (canvas.ASCII_canvas[segment.coords.x + leaf_coord.x][segment.coords.y + leaf_coord.y] == '0')
+        {
+            std::cout << "\x1B[" << segment.coords.x + leaf_coord.x << ';' << segment.coords.y + leaf_coord.y << 'H';
+            std::cout << "\x1b[38;2;45;90;39m" << '&' << "\x1b[m";
+            std::cout.flush();
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+    }
+}
+
+void print_segment(Segment segment, Canvas& canvas)
+// Uses the coordinates and type members of a Segment object.
+// Accesses SegmentInfo to retrieve the ASCII representation of a segment.
+{
+    std::string ascii_output{add_decor(segment, canvas)};
+    std::cout << "\x1B[" << segment.coords.x << ';' << segment.coords.y << 'H';
+    std::cout << ascii_output;
+    std::cout.flush();
+    if (segment.is_terminator)
+        add_leaves(segment, canvas);
 }
 
 std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
 // Adds the potential segments to a vector the number of times specified.
 // Randomly chooses a winning segment.
-// This definitely isn't efficient, but its analogous to a raffle, so easy to understand...
-// rand() % raffle.size() would probably work fine to simplify things.
+// This isn't particularly efficient, but its analogous to a raffle, so easy to understand...
 {
     std::map<std::string, int> potential_segments{SegmentInfo::get_probabilities(previous_segment.type)};
     std::vector<std::string> raffle;
@@ -343,13 +333,14 @@ std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
         value = it->second;
         while (value--)
             raffle.push_back(it->first);
-    }
-    srand(canvas.get_seed());                                  
+    }                                 
     long unsigned int winner{rand() % raffle.size()};
     return raffle[winner];
 }
 
 Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
+// Deals with creating the next Segment object to pass through the add_segment() loop.
+// Performs checks to make sure the tree will not grow out of frame.
 {   
     std::string next_seg_name;
     std::string force_split = canvas.force_segment_split(previous_segment);
@@ -366,6 +357,7 @@ Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
 }
 
 void add_to_canvas(Segment segment, Canvas& canvas)
+// Adds segment to a 2D vector the size of the terminal window (currently only supporting default 80x24).
 {
     int row{segment.coords.x}; // backwards...
     std::string segment_ASCII = SegmentInfo::get_ASCII(segment.type);
@@ -374,6 +366,8 @@ void add_to_canvas(Segment segment, Canvas& canvas)
 }
 
 void add_segment(Segment previous_segment, Canvas& canvas)
+// Main program loop. Recurses when a Segment creates a new branch.
+// While loop breaks when a terminator segment is reached.
 {
     while (true)
     {
@@ -392,8 +386,8 @@ void add_segment(Segment previous_segment, Canvas& canvas)
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (branch_info.predefined_next_segs)
             {
-                print_segment(left_branch, canvas);
                 add_to_canvas(left_branch, canvas);
+                print_segment(left_branch, canvas);
             }
             add_segment(left_branch, canvas);  // Recurse.
 
@@ -403,9 +397,9 @@ void add_segment(Segment previous_segment, Canvas& canvas)
             previous_segment = right_branch;
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             if (branch_info.predefined_next_segs) 
-            {
-                print_segment(right_branch, canvas);
+            {   
                 add_to_canvas(right_branch, canvas);
+                print_segment(right_branch, canvas);
             }
         }
         else
@@ -414,18 +408,34 @@ void add_segment(Segment previous_segment, Canvas& canvas)
     }
 }
 
-int main()
+Segment initialise_tree(Canvas& canvas)
+// Places the first Segment on the screen and canvas.
+// Returns the Segment object required to start the main recursion loop 'add_segment()'.
 {
+    Segment base{"trunk_base", {23, 37}};
+    canvas.segment_count++;
+    print_segment(base, canvas);
+    return base;
+}
+
+int main(int argc, char* argv[])
+{
+    if (argc > 1 && std::string(argv[1]) == "--seed")
+        srand(std::stoi(argv[2]));
+    else
+        srand(time(NULL));    
     initialize_segment_types();
     clear_screen(24, 80);
     Canvas canvas{24, 80};
     Segment base = initialise_tree(canvas);
     add_segment(base, canvas);
-    std::cout << "\x1B[" << 24 << ";" << 1 << "H";  // there's something weird happening with cout buffering/flushing.
+    std::cout << "\x1B[" << 24 << ";" << 1 << "H" << "\x1b[?25h";  // returns cursor to bottom of terminal.
     // for (int i{0}; i<canvas.ASCII_canvas.size(); i++)
     // {
     //     for (int ii{0}; ii<canvas.ASCII_canvas[0].size(); ii++)
+    //     {
     //         std::cout << canvas.ASCII_canvas[i][ii];
+    //     }
     //     std::cout << std::endl;
     // }
     return 0;
