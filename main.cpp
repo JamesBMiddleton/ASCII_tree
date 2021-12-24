@@ -203,8 +203,8 @@ struct Canvas
 {
     Canvas(long unsigned int x, long unsigned int y);
     std::vector<std::vector<char>> ASCII_canvas;
-    std::string force_segment_split(Segment segment);
-    bool terminates(Segment segment);
+    std::string force_segment_split(Segment& segment);
+    bool terminates(Segment& segment);
     unsigned long segment_count{0};
     bool has_hollow{false};
 private:
@@ -220,7 +220,7 @@ Canvas::Canvas(long unsigned int x, long unsigned int y)
     :ASCII_canvas{x, std::vector<char>(y, '0')}  // Creates a 2D vector of '0' chars.
 {}
 
-std::string Canvas::force_segment_split(Segment segment)
+std::string Canvas::force_segment_split(Segment& segment)
 // Checks whether a Segment should split and returns the relevant Segment type to do so.
 {
     if ((segment.type == "trunk_left" || segment.type == "trunk_straight" || segment.type == "trunk_right") && segment.coords.x <= max_trunk_height)
@@ -239,7 +239,7 @@ std::string Canvas::force_segment_split(Segment segment)
     return "";
 }
 
-bool Canvas::terminates(Segment segment)
+bool Canvas::terminates(Segment& segment)
 // Decides whether a segment should terminate.
 {   
     if (segment.coords.x <= max_twig_height)
@@ -257,7 +257,7 @@ void clear_screen(int x, int y)
     std::cout << s << "\x1b[?25l";
 }
 
-std::string add_decor(Segment segment, Canvas& canvas)
+std::string add_decor(Segment& segment, Canvas& canvas)
 // Adds decoration to a segment's ASCII in random positions.
 // A bit of an 'if' mess.
 {
@@ -289,7 +289,7 @@ std::string add_decor(Segment segment, Canvas& canvas)
     return "\x1b[38;2;161;61;45m" + ascii + "\x1b[m";
 }
 
-void add_leaves(Segment segment, Canvas& canvas)
+void add_leaves(Segment& segment, Canvas& canvas)
 // prints a circle of leaves around terminating twigs.
 {
     static std::vector<Coords> leaf_coords {
@@ -307,7 +307,7 @@ void add_leaves(Segment segment, Canvas& canvas)
     }
 }
 
-void print_segment(Segment segment, Canvas& canvas)
+void print_segment(Segment& segment, Canvas& canvas)
 // Uses the coordinates and type members of a Segment object.
 // Accesses SegmentInfo to retrieve the ASCII representation of a segment.
 {
@@ -319,7 +319,7 @@ void print_segment(Segment segment, Canvas& canvas)
         add_leaves(segment, canvas);
 }
 
-std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
+std::string choose_segment_type(Segment& previous_segment, Canvas& canvas)
 // Adds the potential segments to a vector the number of times specified.
 // Randomly chooses a winning segment.
 // This isn't particularly efficient, but its analogous to a raffle, so easy to understand...
@@ -338,7 +338,7 @@ std::string choose_segment_type(Segment previous_segment, Canvas& canvas)
     return raffle[winner];
 }
 
-Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
+Segment pick_next_segment(Segment& previous_segment, Canvas& canvas)
 // Deals with creating the next Segment object to pass through the add_segment() loop.
 // Performs checks to make sure the tree will not grow out of frame.
 {   
@@ -356,7 +356,7 @@ Segment pick_next_segment(Segment previous_segment, Canvas& canvas)
     return next_segment;
 }
 
-void add_to_canvas(Segment segment, Canvas& canvas)
+void add_to_canvas(Segment& segment, Canvas& canvas)
 // Adds segment to a 2D vector the size of the terminal window (currently only supporting default 80x24).
 {
     int row{segment.coords.x}; // backwards...
@@ -365,9 +365,9 @@ void add_to_canvas(Segment segment, Canvas& canvas)
         canvas.ASCII_canvas[row][segment.coords.y+i] = segment_ASCII[i];
 }
 
-void add_segment(Segment previous_segment, Canvas& canvas)
+void add_segment(Segment& previous_segment, Canvas& canvas)
 // Main program loop. Recurses when a Segment creates a new branch.
-// While loop breaks when a terminator segment is reached.
+// 'While' loop breaks when a terminator segment is reached.
 {
     while (true)
     {
@@ -430,13 +430,5 @@ int main(int argc, char* argv[])
     Segment base = initialise_tree(canvas);
     add_segment(base, canvas);
     std::cout << "\x1B[" << 24 << ";" << 1 << "H" << "\x1b[?25h";  // returns cursor to bottom of terminal.
-    // for (int i{0}; i<canvas.ASCII_canvas.size(); i++)
-    // {
-    //     for (int ii{0}; ii<canvas.ASCII_canvas[0].size(); ii++)
-    //     {
-    //         std::cout << canvas.ASCII_canvas[i][ii];
-    //     }
-    //     std::cout << std::endl;
-    // }
     return 0;
 }
