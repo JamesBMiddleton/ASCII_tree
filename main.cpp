@@ -4,7 +4,6 @@
 #include <chrono>
 #include <thread>
 
-
 struct Coords {int x, y;};
 struct CoordsOffset {int x, y;};
 
@@ -255,6 +254,7 @@ void clear_screen(int x, int y)
     int total{x*y};
     std::string s(total, ' ');
     std::cout << s << "\x1b[?25l";
+    std::cout.flush();
 }
 
 std::string add_decor(Segment& segment, Canvas& canvas)
@@ -412,7 +412,7 @@ Segment initialise_tree(Canvas& canvas)
 // Places the first Segment on the screen and canvas.
 // Returns the Segment object required to start the main recursion loop 'add_segment()'.
 {
-    Segment base{"trunk_base", {23, 37}};
+    Segment base{"trunk_base", {23, 32}};
     canvas.segment_count++;
     print_segment(base, canvas);
     return base;
@@ -423,7 +423,7 @@ int main(int argc, char* argv[])
     if (argc > 1 && std::string(argv[1]) == "--seed")
         srand(std::stoi(argv[2]));
     else
-        srand(time(NULL));    
+        srand(time(NULL)); 
     initialize_segment_types();
     clear_screen(24, 80);
     Canvas canvas{24, 80};
