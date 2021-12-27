@@ -36,3 +36,10 @@ The main program loop occurs within the function _add_segment()_. The _Segment_ 
 ### Issues & Improvements
 
 The main problem with this current version is that branches have no knowledge of where other branches are, meaning on occasions where multiple branches overlap, the result can end up looking like a jumbled mess of ASCII characters not particularly representative of how trees grow.<br> On a similar note, an issue I ran into was the tradeoff between constraining the tree growth to produce recognisably "tree-like" structures and allowing more variety in the growth of the trees. In its current state it is tuned more towards producing recognisable trees (which usually look similar to acacia trees) with every random seed. To add more variety while still mainly producing recognisably "tree-like" structures, a solution would be to create sets of constraints which could be chosen to produce different types of trees.
+
+<br>
+<br>
+
+![seed_74_small](https://user-images.githubusercontent.com/73485794/147479524-080c89df-7a63-46e3-9b6c-ca67097b5b1d.gif)
+![seed_78_small](https://user-images.githubusercontent.com/73485794/147479694-cfe6f15b-486b-4a8f-a3ab-e299c19b7a52.gif)
+
